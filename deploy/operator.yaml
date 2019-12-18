@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dendronaut-operator-sdk
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: dendronaut-operator-sdk
+  template:
+    metadata:
+      labels:
+        name: dendronaut-operator-sdk
+    spec:
+      serviceAccountName: dendronaut-operator-sdk
+      containers:
+        - name: dendronaut-operator-sdk
+          # Replace this with the built image name
+          image: REPLACE_IMAGE
+          command:
+          - dendronaut-operator-sdk
+          imagePullPolicy: Always
+          env:
+            - name: WATCH_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: OPERATOR_NAME
+              value: "dendronaut-operator-sdk"

@@ -1,0 +1,11 @@
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: dendronaut-operator-sdk
+subjects:
+- kind: ServiceAccount
+  name: dendronaut-operator-sdk
+roleRef:
+  kind: Role
+  name: dendronaut-operator-sdk
+  apiGroup: rbac.authorization.k8s.io
