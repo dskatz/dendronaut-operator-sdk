@@ -1,0 +1,7 @@
+apiVersion: dendronaut.example.com/v1alpha1
+kind: DendronautJob
+metadata:
+  name: example-dendronautjob
+spec:
+  # Add fields here
+  size: 3
