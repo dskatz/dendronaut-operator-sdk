@@ -4,7 +4,7 @@ import (
 	"context"
 
 	dendronautv1alpha1 "github.com/dskatz/dendronaut-operator-sdk/pkg/apis/dendronaut/v1alpha1"
-	corev1 "k8s.io/api/core/v1"
+	batchv1beta1 "k8s.io/api/batch/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -53,7 +53,7 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 
 	// TODO(user): Modify this to be the types you create that are owned by the primary resource
 	// Watch for changes to secondary resource Pods and requeue the owner DendronautJob
-	err = c.Watch(&source.Kind{Type: &corev1.Pod{}}, &handler.EnqueueRequestForOwner{
+	err = c.Watch(&source.Kind{Type: &batchv1beta1.CronJob{}}, &handler.EnqueueRequestForOwner{
 		IsController: true,
 		OwnerType:    &dendronautv1alpha1.DendronautJob{},
 	})
@@ -100,20 +100,23 @@ func (r *ReconcileDendronautJob) Reconcile(request reconcile.Request) (reconcile
 		return reconcile.Result{}, err
 	}
 
-	// Define a new Pod object
-	pod := newPodForCR(instance)
+	reqLogger.Info("Cron.Spec", "Instance.Spec.Cron", instance.Spec.Cron)
 
-	// Set DendronautJob instance as the owner and controller
-	if err := controllerutil.SetControllerReference(instance, pod, r.scheme); err != nil {
-		return reconcile.Result{}, err
-	}
+	/*
+		// Set DendronautJob instance as the owner and controller
+		if err := controllerutil.SetControllerReference(instance, pod, r.scheme); err != nil {
+			return reconcile.Result{}, err
+		}
+	*/
 
 	// Check if this Pod already exists
-	found := &corev1.Pod{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: pod.Name, Namespace: pod.Namespace}, found)
+	found := &batchv1beta1.CronJob{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, found)
 	if err != nil && errors.IsNotFound(err) {
-		reqLogger.Info("Creating a new Pod", "Pod.Namespace", pod.Namespace, "Pod.Name", pod.Name)
-		err = r.client.Create(context.TODO(), pod)
+		reqLogger.Info("Found Error ", "err", err)
+		reqLogger.Info("Creating a new CronJob", "CronJob.Namespace", instance.Namespace, "CronJob.Name", instance.Name)
+		job := r.newCronJobForDendronaut(instance)
+		err = r.client.Create(context.TODO(), job)
 		if err != nil {
 			return reconcile.Result{}, err
 		}
@@ -125,29 +128,24 @@ func (r *ReconcileDendronautJob) Reconcile(request reconcile.Request) (reconcile
 	}
 
 	// Pod already exists - don't requeue
-	reqLogger.Info("Skip reconcile: Pod already exists", "Pod.Namespace", found.Namespace, "Pod.Name", found.Name)
+	reqLogger.Info("Skip reconcile: CronJob already exists", "CronJob.Namespace", found.Namespace, "CronJob.Name", found.Name)
 	return reconcile.Result{}, nil
 }
 
 // newPodForCR returns a busybox pod with the same name/namespace as the cr
-func newPodForCR(cr *dendronautv1alpha1.DendronautJob) *corev1.Pod {
+func (r *ReconcileDendronautJob) newCronJobForDendronaut(cr *dendronautv1alpha1.DendronautJob) *batchv1beta1.CronJob {
 	labels := map[string]string{
 		"app": cr.Name,
 	}
-	return &corev1.Pod{
+	job := &batchv1beta1.CronJob{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      cr.Name + "-pod",
+			Name:      cr.Name,
 			Namespace: cr.Namespace,
 			Labels:    labels,
 		},
-		Spec: corev1.PodSpec{
-			Containers: []corev1.Container{
-				{
-					Name:    "busybox",
-					Image:   "busybox",
-					Command: []string{"sleep", "3600"},
-				},
-			},
-		},
+		Spec: cr.Spec.Cron,
 	}
+
+	controllerutil.SetControllerReference(cr, job, r.scheme)
+	return job
 }
